@@ -3,4 +3,4 @@ business_hours:
   weekdays: [Mon, Tue, Wed, Thu, Fri]
   start: "09:00"     # inclusive
   end: "18:00"       # exclusive
-  holidays: []       # e.g. ["2026-10-02"]
+  holidays: []       # e.g. ["2026-10-02"] so we can add it later if needed

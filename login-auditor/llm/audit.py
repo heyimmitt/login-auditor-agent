@@ -1,3 +1,4 @@
+"""The single front door of the agent: audit(prompt, now) -> AuditResult."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -6,6 +7,7 @@ from typing import Callable
 from contracts.models import AuditResult, EventType, LoginEvent
 from llm.client import LLMClient, LLMError, get_default_client
 from llm.intent import IntentError, NeedsClarification, parse_intent
+from llm.llm_filter import LLMFilterError, llm_filter
 from llm.summarize import summarize
 from pipeline.errors import LogReadError
 from timelogic.policy import Policy, is_outside_business_hours, load_policy
@@ -19,6 +21,7 @@ def audit(
     prompt: str,
     now: datetime | None = None,
     *,
+    filter_mode: str = "code",             # "code" or "llm" (llm = also ask the LLM to filter)
     llm: LLMClient | None = None,          # tests pass a fake LLM here
     run_query_fn: RunQuery | None = None,  # --fixtures passes a fake pipeline here
     policy: Policy | None = None,
@@ -56,11 +59,29 @@ def audit(
         return AuditResult(status="error", summary=f"Could not read the login logs: {e}",
                            error=str(e))
 
-    # 5. Business-hours rule (code).
+    # 5. Business-hours filtering.
+    #    The code's answer is always computed and is the one we trust.
     if query.condition == "outside_business_hours":
-        flagged = [e for e in events if is_outside_business_hours(e.timestamp, policy)]
+        code_idx = {i for i, e in enumerate(events)
+                    if is_outside_business_hours(e.timestamp, policy)}
     else:
-        flagged = list(events)
+        code_idx = set(range(len(events)))
+    flagged = [events[i] for i in sorted(code_idx)]
+
+    #    Optional: the LLM filters the same events too, and we compare the two.
+    llm_check = None
+    if filter_mode == "llm" and query.condition == "outside_business_hours":
+        try:
+            llm_idx = llm_filter(events, policy, llm)
+            llm_check = {
+                "status": "agreed" if llm_idx == code_idx else "disagreed",
+                "code_count": len(code_idx),
+                "llm_count": len(llm_idx),
+                "missed_by_llm": sorted(code_idx - llm_idx),   # event positions
+                "extra_by_llm": sorted(llm_idx - code_idx),
+            }
+        except (LLMFilterError, LLMError) as e:
+            llm_check = {"status": "failed", "reason": str(e)}
 
     scope = {
         "window": describe_window(start, end, policy.tz),
@@ -72,8 +93,10 @@ def audit(
         "events_considered": len(events),
         "events_flagged": len(flagged),
     }
+    if llm_check is not None:
+        scope["llm_filter_check"] = llm_check
 
-    # 6. Explain the small result in plain English.
+    # 6. Explain the (small) result in plain English.
     summary = summarize(prompt, flagged, scope, llm, policy.tz)
 
     return AuditResult(

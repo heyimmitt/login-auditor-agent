@@ -12,17 +12,22 @@ def main() -> None:
     ap.add_argument("--now", help="ISO time to use as 'now', e.g. 2026-10-11T10:00:00+05:30")
     ap.add_argument("--fixtures", nargs="?", const=str(DEFAULT_FIXTURES), metavar="FILE",
                     help="use fixture events instead of real logs")
+    ap.add_argument("--filter", choices=["code", "llm"], default="code",
+                    help="'llm' also asks the LLM to filter by business hours and compares")
     ap.add_argument("--json", action="store_true", help="print the full result as JSON")
     args = ap.parse_args()
 
     now = datetime.fromisoformat(args.now) if args.now else None
     run_query_fn = make_fixture_run_query(args.fixtures) if args.fixtures else None
-    result = audit(args.prompt, now, run_query_fn=run_query_fn)
+    result = audit(args.prompt, now, filter_mode=args.filter, run_query_fn=run_query_fn)
 
     if args.json:
         print(json.dumps(result.model_dump(mode="json"), indent=2))
     else:
         print(f"[{result.status}]\n{result.summary}")
+        check = result.scope.get("llm_filter_check")
+        if check:
+            print(f"\nLLM filter check: {check}")
         if result.error:
             print(f"error: {result.error}")
 
