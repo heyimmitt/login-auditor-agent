@@ -1,3 +1,5 @@
+#never sends raw log lines to the model and cleans attacker-controlled text first.
+
 from __future__ import annotations
 
 import json
