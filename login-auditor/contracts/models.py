@@ -16,6 +16,7 @@ class LoginEvent(BaseModel):
     timestamp: datetime          # timezone-aware, always
     user: str                    # account involved (e.g. "root")
     event_type: EventType
+    actor: str | None = None     # who ran sudo/su (sudo_root, su_root only)
     method: str | None = None    # "publickey", "password", "console", ...
     remote_ip: str | None = None
     tty: str | None = None
