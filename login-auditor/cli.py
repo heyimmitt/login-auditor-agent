@@ -1,6 +1,3 @@
-"""Command-line entry point.
-  python cli.py "root logins outside business hours this week" --fixtures --now 2026-10-11T10:00:00+05:30
-"""
 import argparse
 import json
 from datetime import datetime
@@ -12,10 +9,10 @@ from llm.dev_fixtures import DEFAULT_FIXTURES, make_fixture_run_query
 def main() -> None:
     ap = argparse.ArgumentParser(description="Login Auditor Agent")
     ap.add_argument("prompt")
-    ap.add_argument("--now", help="ISO timestamp to use as 'now' (e.g. 2026-10-11T10:00:00+05:30)")
+    ap.add_argument("--now", help="ISO time to use as 'now', e.g. 2026-10-11T10:00:00+05:30")
     ap.add_argument("--fixtures", nargs="?", const=str(DEFAULT_FIXTURES), metavar="FILE",
                     help="use fixture events instead of real logs")
-    ap.add_argument("--json", action="store_true", help="print the full AuditResult as JSON")
+    ap.add_argument("--json", action="store_true", help="print the full result as JSON")
     args = ap.parse_args()
 
     now = datetime.fromisoformat(args.now) if args.now else None

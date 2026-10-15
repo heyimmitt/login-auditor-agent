@@ -1,4 +1,3 @@
-"""Business-hours policy: load config, decide what counts as 'outside hours'."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,11 +20,13 @@ class Policy:
     holidays: frozenset[date]
 
     def describe(self) -> str:
+        """Human-readable policy, e.g. 'Mon, Tue ... 09:00-18:00 Asia/Kolkata'."""
         days = ", ".join(n for n, i in _DAY_INDEX.items() if i in self.weekdays)
         return f"{days} {self.start:%H:%M}-{self.end:%H:%M} {self.tz.key}"
 
 
 def load_policy(path: Path | str = DEFAULT_POLICY_PATH) -> Policy:
+    """Read config/policy.yaml into a Policy object."""
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)["business_hours"]
     return Policy(
@@ -38,10 +39,10 @@ def load_policy(path: Path | str = DEFAULT_POLICY_PATH) -> Policy:
 
 
 def is_outside_business_hours(ts: datetime, policy: Policy) -> bool:
-    """True if ts falls on a holiday, a non-working day, or outside [start, end)."""
+    """True if ts is on a holiday, a non-working day, or outside [start, end)."""
     if ts.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
-    local = ts.astimezone(policy.tz)
+    local = ts.astimezone(policy.tz)          # convert to the policy's timezone first
     if local.date() in policy.holidays:
         return True
     if local.weekday() not in policy.weekdays:
