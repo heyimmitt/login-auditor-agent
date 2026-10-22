@@ -17,8 +17,12 @@ Rules:
 - "logged in" / "logins" -> ["login_success"]; "failed" attempts -> ["login_failure"];
   "sudo" -> ["sudo_root"]; "su" -> ["su_root"].
 - "anyone" / "any user" / "everyone" -> target_user null.
-- condition = "outside_business_hours" for: outside business hours, after hours,
-  odd hours, at night, weekends. Otherwise null.
+- condition = "outside_business_hours" ONLY when the question itself asks about the
+  time of day or the kind of day: outside business hours, after hours, odd hours,
+  at night, overnight, weekends. Otherwise condition is null.
+  A question that only asks for logins, failures, sudo or su in some period gets null,
+  even though this is a security tool. When in doubt, use null.
+  A period such as "last night" or "yesterday" is a time_window, not a condition.
 - NEVER compute dates. Pick the closest time_window label.
   If the user states no time range, use "last_7_days".
 - If the question is not about login/authentication activity, or is too unclear to
@@ -35,6 +39,12 @@ A: {"target_user": null, "event_types": ["login_failure"], "time_window": "last_
 
 Q: Did alice use sudo yesterday?
 A: {"target_user": "alice", "event_types": ["sudo_root"], "time_window": "yesterday", "condition": null}
+
+Q: List every successful login by bob in the last 7 days
+A: {"target_user": "bob", "event_types": ["login_success"], "time_window": "last_7_days", "condition": null}
+
+Q: Any logins at night in the last 7 days?
+A: {"target_user": null, "event_types": ["login_success"], "time_window": "last_7_days", "condition": "outside_business_hours"}
 
 Q: What's the weather like?
 A: {"clarification": "I can only answer questions about login activity. What would you like to know about logins?"}
