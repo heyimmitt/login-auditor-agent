@@ -68,8 +68,27 @@ def test_clarification_short_circuits():
 def test_injection_text_is_cleaned_and_raw_lines_not_sent():
     q = ('{"target_user": null, "event_types": ["login_failure"], '
          '"time_window": "this_week", "condition": "outside_business_hours"}')
-    llm = FakeLLM(q, "summary")
+    llm = FakeLLM(q, '{"outside_hours": []}', "summary")
     audit("failed logins after hours", NOW, llm=llm, run_query_fn=make_fixture_run_query())
+    assert len(llm.calls) == 3
     summary_prompt = llm.calls[-1][1]
     assert "<log_data>" in summary_prompt
     assert "Failed password for" not in summary_prompt   # raw lines never sent
+
+
+def test_code_rule_decides_even_when_llm_filter_disagrees():
+    llm = FakeLLM(ROOT_OFFHOURS, '{"outside_hours": [1]}', "summary")
+    r = audit("root logins outside business hours this week", NOW,
+              llm=llm, run_query_fn=make_fixture_run_query())
+    assert len(r.events) == 3
+    check = r.scope["llm_filter_check"]
+    assert check["status"] == "disagreed"
+    assert (check["code_count"], check["llm_count"]) == (3, 1)
+
+
+def test_broken_llm_filter_reply_does_not_fail_the_audit():
+    llm = FakeLLM(ROOT_OFFHOURS, "not json at all", "summary")
+    r = audit("root logins outside business hours this week", NOW,
+              llm=llm, run_query_fn=make_fixture_run_query())
+    assert r.status == "ok" and len(r.events) == 3
+    assert r.scope["llm_filter_check"]["status"] == "error"

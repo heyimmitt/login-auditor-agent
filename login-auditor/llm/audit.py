@@ -61,32 +61,15 @@ def audit(
 
     
     # 5. Business-hours filtering.
-    # The LLM determines which events are outside business hours.
-    code_idx = {
-        i for i, e in enumerate(events)
-        if is_outside_business_hours(e.timestamp, policy)
-    } if query.condition == "outside_business_hours" else set(range(len(events)))
-
+    # The code's rule decides the result. The LLM filters the same events as a
+    # cross-check only: evaluation showed it disagreed with the rule ~30% of the time.
     llm_check = None
-
     if query.condition == "outside_business_hours":
+        code_idx = {i for i, e in enumerate(events)
+                    if is_outside_business_hours(e.timestamp, policy)}
+        flagged = [events[i] for i in sorted(code_idx)]
         try:
             llm_idx = llm_filter(events, policy, llm)
-
-            # Validate returned indexes before using them.
-            if any(
-                not isinstance(i, int) or isinstance(i, bool)
-                or i < 0 or i >= len(events)
-                for i in llm_idx
-            ):
-                raise LLMFilterError(
-                    "The LLM returned invalid event indexes."
-                )
-
-            # IMPORTANT: the LLM result determines the final events.
-            flagged = [events[i] for i in sorted(llm_idx)]
-
-            # Python is used only to evaluate LLM accuracy.
             llm_check = {
                 "status": "agreed" if llm_idx == code_idx else "disagreed",
                 "code_count": len(code_idx),
@@ -94,13 +77,8 @@ def audit(
                 "missed_by_llm": sorted(code_idx - llm_idx),
                 "extra_by_llm": sorted(llm_idx - code_idx),
             }
-
         except (LLMFilterError, LLMError) as e:
-            return AuditResult(
-                status="error",
-                summary="The LLM could not filter the login events.",
-                error=str(e),
-            )
+            llm_check = {"status": "error", "error": str(e)}
     else:
         flagged = events
 
