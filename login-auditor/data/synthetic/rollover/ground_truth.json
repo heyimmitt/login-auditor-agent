@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "timezone": "Asia/Kolkata",
+    "timestamp_format": "traditional",
+    "notes": [
+      "auth.log only. Years must be inferred from the file's mtime (2026-01-02); a fresh git checkout resets mtime to the checkout time, which still works as long as that is later in the same year."
+    ]
+  },
+  "cases": {
+    "rollover": "Root logins across Dec 31 -> Jan 1 (traditional timestamps, no year)"
+  },
+  "events": [
+    {
+      "id": "e001",
+      "label": "rollover",
+      "outside_business_hours": true,
+      "timestamp": "2025-12-31T22:00:00+05:30",
+      "user": "root",
+      "actor": null,
+      "event_type": "login_success",
+      "source": "auth.log",
+      "remote_ip": "203.0.113.70",
+      "tty": null,
+      "method": "publickey"
+    },
+    {
+      "id": "e003",
+      "label": "rollover",
+      "outside_business_hours": true,
+      "timestamp": "2025-12-31T23:59:58+05:30",
+      "user": "root",
+      "actor": null,
+      "event_type": "login_success",
+      "source": "auth.log",
+      "remote_ip": "203.0.113.70",
+      "tty": null,
+      "method": "publickey"
+    },
+    {
+      "id": "e005",
+      "label": "rollover",
+      "outside_business_hours": true,
+      "timestamp": "2026-01-01T00:00:02+05:30",
+      "user": "root",
+      "actor": null,
+      "event_type": "login_success",
+      "source": "auth.log",
+      "remote_ip": "203.0.113.70",
+      "tty": null,
+      "method": "publickey"
+    },
+    {
+      "id": "e007",
+      "label": "rollover",
+      "outside_business_hours": false,
+      "timestamp": "2026-01-01T10:00:00+05:30",
+      "user": "alice",
+      "actor": null,
+      "event_type": "login_success",
+      "source": "auth.log",
+      "remote_ip": "10.0.0.20",
+      "tty": null,
+      "method": "publickey"
+    }
+  ]
+}

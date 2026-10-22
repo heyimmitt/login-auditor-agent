@@ -1,0 +1,8 @@
+Dec 31 22:00:00 auditvm sshd[1039]: Accepted publickey for root from 203.0.113.70 port 46901 ssh2
+Dec 31 22:00:00 auditvm sshd[1039]: pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)
+Dec 31 23:59:58 auditvm sshd[1053]: Accepted publickey for root from 203.0.113.70 port 62527 ssh2
+Dec 31 23:59:58 auditvm sshd[1053]: pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)
+Jan  1 00:00:02 auditvm sshd[1086]: Accepted publickey for root from 203.0.113.70 port 56008 ssh2
+Jan  1 00:00:02 auditvm sshd[1086]: pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)
+Jan  1 10:00:00 auditvm sshd[1092]: Accepted publickey for alice from 10.0.0.20 port 60784 ssh2
+Jan  1 10:00:00 auditvm sshd[1092]: pam_unix(sshd:session): session opened for user alice(uid=1001) by (uid=0)
