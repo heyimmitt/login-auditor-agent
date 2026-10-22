@@ -1,11 +1,7 @@
-#the only file that talks to the LLM
-
 from __future__ import annotations
 
 import os
 from typing import Protocol
-
-DEFAULT_MODEL = "claude-sonnet-5-5"     # override with LLM_MODEL in .env
 
 
 class LLMError(Exception):
@@ -16,32 +12,41 @@ class LLMClient(Protocol):
     def complete(self, system: str, user: str, max_tokens: int = 1000) -> str: ...
 
 
-class AnthropicClient:
-    def __init__(self, model: str | None = None):
-        import anthropic                      # imported here so tests don't need it
-        self._client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
-        self.model = model or os.getenv("LLM_MODEL", DEFAULT_MODEL)
+class OpenAICompatibleClient:
+    def __init__(self):
+        from openai import OpenAI              # imported here so tests don't need it
+        self.base_url = os.getenv("LLM_BASE_URL") or None   # None = real OpenAI
+        self._client = OpenAI(
+            api_key=os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY"),
+            base_url=self.base_url,
+        )
+        self.model = os.environ["LLM_MODEL"]   # required: set it in .env
 
     def complete(self, system: str, user: str, max_tokens: int = 1000) -> str:
+        # Real OpenAI uses max_completion_tokens; other providers use max_tokens.
+        limit = ({"max_completion_tokens": max_tokens} if self.base_url is None
+                 else {"max_tokens": max_tokens})
         try:
-            resp = self._client.messages.create(
+            resp = self._client.chat.completions.create(
                 model=self.model,
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": user}],
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                **limit,
             )
         except Exception as e:
             raise LLMError(str(e)) from e
-        return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+        return resp.choices[0].message.content or ""
 
 
 def get_default_client() -> LLMClient:
     try:
         from dotenv import load_dotenv
-        load_dotenv()                          # loads ANTHROPIC_API_KEY from .env
+        load_dotenv()
     except ImportError:
         pass
     try:
-        return AnthropicClient()
+        return OpenAICompatibleClient()
     except Exception as e:
         raise LLMError(f"Could not create LLM client: {e}") from e

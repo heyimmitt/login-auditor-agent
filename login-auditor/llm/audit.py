@@ -21,7 +21,7 @@ def audit(
     prompt: str,
     now: datetime | None = None,
     *,
-    filter_mode: str = "code",             # "code" or "llm" (llm = also ask the LLM to filter)
+    filter_mode: str = "llm",             # "code" or "llm" (llm = also ask the LLM to filter)
     llm: LLMClient | None = None,          # tests pass a fake LLM here
     run_query_fn: RunQuery | None = None,  # --fixtures passes a fake pipeline here
     policy: Policy | None = None,
@@ -59,44 +59,67 @@ def audit(
         return AuditResult(status="error", summary=f"Could not read the login logs: {e}",
                            error=str(e))
 
+    
     # 5. Business-hours filtering.
-    #    The code's answer is always computed and is the one we trust.
-    if query.condition == "outside_business_hours":
-        code_idx = {i for i, e in enumerate(events)
-                    if is_outside_business_hours(e.timestamp, policy)}
-    else:
-        code_idx = set(range(len(events)))
-    flagged = [events[i] for i in sorted(code_idx)]
+    # The LLM determines which events are outside business hours.
+    code_idx = {
+        i for i, e in enumerate(events)
+        if is_outside_business_hours(e.timestamp, policy)
+    } if query.condition == "outside_business_hours" else set(range(len(events)))
 
-    #    Optional: the LLM filters the same events too, and we compare the two.
     llm_check = None
-    if filter_mode == "llm" and query.condition == "outside_business_hours":
+
+    if query.condition == "outside_business_hours":
         try:
             llm_idx = llm_filter(events, policy, llm)
+
+            # Validate returned indexes before using them.
+            if any(
+                not isinstance(i, int) or isinstance(i, bool)
+                or i < 0 or i >= len(events)
+                for i in llm_idx
+            ):
+                raise LLMFilterError(
+                    "The LLM returned invalid event indexes."
+                )
+
+            # IMPORTANT: the LLM result determines the final events.
+            flagged = [events[i] for i in sorted(llm_idx)]
+
+            # Python is used only to evaluate LLM accuracy.
             llm_check = {
                 "status": "agreed" if llm_idx == code_idx else "disagreed",
                 "code_count": len(code_idx),
                 "llm_count": len(llm_idx),
-                "missed_by_llm": sorted(code_idx - llm_idx),   # event positions
+                "missed_by_llm": sorted(code_idx - llm_idx),
                 "extra_by_llm": sorted(llm_idx - code_idx),
             }
-        except (LLMFilterError, LLMError) as e:
-            llm_check = {"status": "failed", "reason": str(e)}
 
-    scope = {
-        "window": describe_window(start, end, policy.tz),
-        "policy": policy.describe(),
-        "user": query.target_user or "any user",
-        "event_types": [t.value for t in query.event_types],
-        "condition": query.condition or "none",
-        "sources": SOURCES,
-        "events_considered": len(events),
-        "events_flagged": len(flagged),
-    }
-    if llm_check is not None:
-        scope["llm_filter_check"] = llm_check
+        except (LLMFilterError, LLMError) as e:
+            return AuditResult(
+                status="error",
+                summary="The LLM could not filter the login events.",
+                error=str(e),
+            )
+    else:
+        flagged = events
+
 
     # 6. Explain the (small) result in plain English.
+    scope = {
+    "window": describe_window(start, end, policy.tz),
+    "policy": policy.describe(),
+    "user": query.target_user or "any user",
+    "event_types": [t.value for t in query.event_types],
+    "condition": query.condition or "none",
+    "sources": SOURCES,
+    "events_considered": len(events),
+    "events_flagged": len(flagged),
+}
+
+    if llm_check is not None:
+        scope["llm_filter_check"] = llm_check
+        
     summary = summarize(prompt, flagged, scope, llm, policy.tz)
 
     return AuditResult(

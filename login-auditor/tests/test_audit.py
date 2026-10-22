@@ -13,7 +13,11 @@ ROOT_OFFHOURS = ('{"target_user": "root", "event_types": ["login_success"], '
 
 
 def test_flags_off_hours_root_logins():
-    llm = FakeLLM(ROOT_OFFHOURS, "Yes, 3 root logins outside business hours.")
+    llm = FakeLLM(
+    ROOT_OFFHOURS,
+    '{"outside_hours": [1, 2, 3]}',
+    "Yes, 3 root logins outside business hours.",
+    )
     r = audit("root logins outside business hours this week", NOW,
               llm=llm, run_query_fn=make_fixture_run_query())
     assert r.status == "ok"
@@ -26,11 +30,25 @@ def test_flags_off_hours_root_logins():
 
 
 def test_no_matches_skips_summary_llm_call():
-    q = ('{"target_user": "alice", "event_types": ["login_success"], '
-         '"time_window": "this_week", "condition": "outside_business_hours"}')
-    llm = FakeLLM(q)  # a second call would raise IndexError
-    r = audit("alice after hours", NOW, llm=llm, run_query_fn=make_fixture_run_query())
-    assert r.status == "no_matches" and "No matching" in r.summary
+    q = (
+        '{"target_user": "alice", "event_types": ["login_success"], '
+        '"time_window": "this_week", "condition": "outside_business_hours"}'
+    )
+    llm = FakeLLM(
+        q,
+        '{"outside_hours": []}',
+    )
+
+    r = audit(
+        "alice after hours",
+        NOW,
+        llm=llm,
+        run_query_fn=make_fixture_run_query(),
+    )
+
+    assert r.status == "no_matches"
+    assert "No matching" in r.summary
+    assert len(llm.calls) == 2  # intent parsing + LLM filtering; no summary call
 
 
 def test_log_read_error_is_reported_not_hidden():

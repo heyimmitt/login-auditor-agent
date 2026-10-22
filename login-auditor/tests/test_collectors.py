@@ -47,7 +47,10 @@ def test_missing_file_raises(tmp_path):
         list(read_lines(tmp_path / "nope"))
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+@pytest.mark.skipif(
+    not hasattr(os, "geteuid") or os.geteuid() == 0,
+    reason="Unix permission behavior is not applicable on Windows or root ignores file permissions",
+)
 def test_permission_denied_raises(tmp_path):
     p = tmp_path / "auth.log"
     p.write_text("x\n")
